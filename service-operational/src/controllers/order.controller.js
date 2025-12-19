@@ -1,72 +1,50 @@
-import Order from '../models/Order.model.js';
-import Product from '../models/Product.model.js';
+// service-operational/src/controllers/order.controller.js
+import { createOrderService } from '../services/order.service.js';
+import { notifyStockUpdate } from '../sockets/inventory.socket.js'; // Using the socket utility
+import Product from '../models/Product.model.js'; // Needed to fetch updated stock for the socket
+import Order from '../models/Order.model.js'; // Needed for getOrders
 
 // @desc    Create a new order
 // @route   POST /api/orders
-export const createOrder = async (req, res) => {
-  const { items, userId } = req.body; // In a real app, userId comes from the auth token
-
-  if (!items || items.length === 0) {
-    return res.status(400).json({ message: 'No items in order' });
-  }
-
+export const createOrder = async (req, res, next) => {
   try {
-    let totalAmount = 0;
-    const orderItems = [];
+    const { items, userId } = req.body;
 
-    // 1. Validate Items & Calculate Total
-    for (const item of items) {
-      const product = await Product.findOne({ sku: item.sku });
-      
-      if (!product) {
-        throw new Error(`Product not found: ${item.sku}`);
-      }
-      if (product.current_stock < item.qty) {
-        throw new Error(`Insufficient stock for: ${product.name}`);
-      }
-
-      // Add to order array with PRICE SNAPSHOT
-      orderItems.push({
-        product_id: product._id,
-        qty: item.qty,
-        price_at_sale: product.price
-      });
-
-      totalAmount += product.price * item.qty;
-
-      // 2. Deduct Stock (Inventory Management)
-      product.current_stock -= item.qty;
-      await product.save();
+    // 1. Input Validation
+    if (!items || items.length === 0) {
+      return res.status(400).json({ message: 'No items in order' });
     }
 
-    // 3. Create Order
-    const order = new Order({
-      order_id: `ORD-${Date.now()}`, // Simple unique ID generator
-      placed_by: userId, // We will manually pass this for MVP testing
-      items: orderItems,
-      total_amount: totalAmount,
-      status: 'COMPLETED'
-    });
+    // 2. Call the Service (Business Logic)
+    const order = await createOrderService(userId, items);
 
-    const savedOrder = await order.save();
-    res.status(201).json(savedOrder);
+    // 3. Real-Time Notification (Socket.io)
+    // We loop through items to notify frontend of ALL changed products
+    for (const item of items) {
+      const updatedProduct = await Product.findOne({ sku: item.sku });
+      // req.io comes from the middleware we added in server.js
+      notifyStockUpdate(req.io, updatedProduct);
+    }
+
+    // 4. Send Response
+    res.status(201).json(order);
 
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    // Pass to the global error handler middleware
+    next(error);
   }
 };
 
 // @desc    Get all orders
 // @route   GET /api/orders
-export const getOrders = async (req, res) => {
+export const getOrders = async (req, res, next) => {
   try {
-    // Populate shows the actual Name/Email instead of just ID
     const orders = await Order.find()
       .populate('placed_by', 'username email')
       .populate('items.product_id', 'name sku');
     
     res.json(orders);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };

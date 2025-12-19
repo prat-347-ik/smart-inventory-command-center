@@ -1,63 +1,52 @@
-import fs from 'fs';
-import csv from 'csv-parser';
-import Product from '../models/Product.model.js';
+import { getAllProductsService, createProductService } from '../services/inventory.service.js';
+import { processCsvUpload } from '../services/csvIngestion.service.js';
+import { notifyStockUpdate } from '../sockets/inventory.socket.js';
 
 // @desc    Get all products
 // @route   GET /api/products
-export const getProducts = async (req, res) => {
+export const getProducts = async (req, res, next) => {
   try {
-    const products = await Product.find();
+    const products = await getAllProductsService();
     res.json(products);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 };
 
 // @desc    Create single product
 // @route   POST /api/products
-export const createProduct = async (req, res) => {
+export const createProduct = async (req, res, next) => {
   try {
-    const newProduct = new Product(req.body);
-    const savedProduct = await newProduct.save();
+    // 1. Service Call
+    const savedProduct = await createProductService(req.body);
+
+    // 2. Socket Event (Notify Dashboard of new item)
+    notifyStockUpdate(req.io, savedProduct);
+
     res.status(201).json(savedProduct);
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    next(err);
   }
 };
 
 // @desc    Bulk Upload via CSV (Legacy Data Migration)
 // @route   POST /api/products/upload
-export const bulkUpload = async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ message: 'No file uploaded' });
-  }
+export const bulkUpload = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
 
-  const results = [];
-  
-  fs.createReadStream(req.file.path)
-    .pipe(csv())
-    .on('data', (data) => results.push(data))
-    .on('end', async () => {
-      try {
-        // Transform CSV data to match Schema
-        // Assumes CSV headers: sku, name, category, price, current_stock
-        const products = results.map(row => ({
-            sku: row.sku,
-            name: row.name,
-            category: row.category,
-            price: parseFloat(row.price),
-            current_stock: parseInt(row.current_stock),
-            low_stock_threshold: parseInt(row.low_stock_threshold || 10)
-        }));
+    // 1. Call the specialized CSV Service
+    // We await the Promise we created in the service
+    const count = await processCsvUpload(req.file.path);
 
-        await Product.insertMany(products);
-        
-        // Clean up uploaded file
-        fs.unlinkSync(req.file.path);
-        
-        res.status(201).json({ message: `Successfully imported ${products.length} products` });
-      } catch (error) {
-        res.status(500).json({ message: 'Error importing data', error: error.message });
-      }
+    // 2. Response
+    res.status(201).json({ 
+      message: `Successfully imported ${count} products` 
     });
+
+  } catch (error) {
+    next(error);
+  }
 };
