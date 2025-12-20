@@ -41,6 +41,14 @@ and data warehousing principles.
 - Enables scalable forecasting pipelines
 - Matches industry-grade data warehouse design
 
+
+## How to Run (Service A)
+```bash
+cd service-operational
+npm install
+npm run dev
+```
+
 ## How to Run (Service B)
 ```bash
 cd service-analytics
