@@ -2,6 +2,10 @@
 node_modules/
 __pycache__/
 tests/
+Notes/
+service-analytics/scripts/
+service-analytics/tests/
+
 *.pyc
 venv/
 .env

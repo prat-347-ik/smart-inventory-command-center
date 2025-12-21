@@ -1,4 +1,5 @@
 
+
 # Intelligent Supply Chain / Inventory Command Center
 
 ## Overview
@@ -27,12 +28,9 @@ This design ensures heavy analytical workloads never block real-time user action
 ✔ Event-driven analytics pipeline (CDC via MongoDB Change Streams)
 ✔ Immutable raw sales events data lake
 ✔ Daily aggregated sales fact table (OLAP)
-✔ **Feature engineering layer (ML-ready signals)**
-
-### 🚧 In Progress
-
-🚧 Forecasting engine (Linear Regression – Phase 4)
-🚧 Forecast persistence & reuse
+✔ Feature engineering layer (ML-ready signals)
+✔ **Forecasting engine with explainable ML (Phase 4)**
+✔ **Forecast persistence & read-optimized API**
 
 ---
 
@@ -49,7 +47,9 @@ Daily Sales Snapshots (Fact Table)
    ↓
 Feature Engineering (ML-ready signals)
    ↓
-Forecasting Engine (Phase 4)
+Forecasting Engine (Linear Regression)
+   ↓
+Persisted Forecasts (Read-Optimized)
 ```
 
 ---
@@ -74,11 +74,97 @@ The feature engineering layer converts aggregated business data into **explainab
 * No data leakage
 * Numeric-only, non-null ML-ready output
 
-This reinforces the principle:
-
 > **Features matter more than algorithms.**
 
 ---
+
+## Forecasting Engine (Phase 4)
+
+The forecasting engine generates **explainable, multi-day demand predictions** using engineered time-series features.
+
+### Model Design
+
+* **Algorithm**: Linear Regression (Scikit-Learn)
+* **Training**: On-the-fly per SKU
+* **Forecasting Strategy**: Recursive multi-step forecasting
+* **Confidence Metric**: R² score (training-based, MVP)
+
+### Key Characteristics
+
+* Explainable feature weights
+* Deterministic predictions
+* No black-box models
+* Safe for low-data scenarios (minimum history enforced)
+
+### Forecast Lifecycle
+
+1. Historical daily snapshots are loaded (OLAP)
+2. Feature engineering pipeline is applied
+3. Regression model is trained per SKU
+4. Future demand is predicted for a configurable horizon
+5. Forecasts are **persisted** and reused
+
+---
+
+## Forecast API (Read Path)
+
+Forecasts are exposed via a **read-only, low-latency API**.
+
+```http
+GET /api/forecast/{sku}
+```
+
+### Behavior
+
+* Returns the latest persisted forecast
+* Does not trigger model training
+* Ensures consistent, reproducible results for dashboards
+
+---
+🔄 Model Lifecycle & Forecast Execution (Important Clarifications)
+Model Lifecycle (Training & Persistence)
+
+For the current MVP implementation:
+
+Forecasting models are trained on-the-fly per SKU when a forecast is generated.
+
+Trained models are not persisted or versioned.
+
+Only the forecast outputs (predictions + confidence score) are stored in the database.
+
+This design was chosen intentionally to:
+
+Keep the system simple and explainable
+
+Avoid premature model registry complexity
+
+Support rapid iteration during development
+
+In a production-grade system, trained models could be versioned and persisted (e.g., model registry, serialized artifacts) to support reuse, comparison, and offline evaluation.
+
+Forecast Triggering Strategy
+
+In the current implementation:
+
+Forecast generation is triggered manually or via script (e.g., trigger_forecast.py).
+
+This allows controlled testing and verification of the full pipeline:
+
+OLAP read → feature engineering → ML → persistence
+
+This approach is sufficient for MVP validation and development.
+
+In a production environment, forecast generation would typically be automated using a scheduler (e.g., cron jobs, Airflow, or a workflow orchestrator) to run periodically or in response to new data availability.
+
+Design Philosophy Behind These Choices
+
+These decisions reflect a deliberate MVP-first strategy:
+
+Prioritize correctness, explainability, and architecture clarity
+
+Defer infrastructure-heavy components until the core pipeline is validated
+
+Ensure every part of the system can be reasoned about and debugged easily
 
 ## Tech Stack
 
@@ -88,11 +174,14 @@ This reinforces the principle:
 * FastAPI
 * Motor (Async MongoDB)
 * Pandas, NumPy
-* Scikit-Learn (upcoming – Phase 4)
+* Scikit-Learn (Linear Regression)
 
 ### Database
 
-* MongoDB Atlas (Replica Set, Change Streams enabled)
+* MongoDB Atlas
+
+  * Replica Set
+  * Change Streams enabled
 
 ---
 
@@ -129,6 +218,9 @@ uvicorn app.main:app --reload
 
 * Finish MVP cleanly before adding complexity
 * Prefer explainable models over black-box accuracy
+* Separate data ingestion, transformation, and prediction clearly
 * Treat documentation and architecture as first-class deliverables
 
 ---
+
+
