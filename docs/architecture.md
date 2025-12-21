@@ -12,13 +12,30 @@ The service is fully decoupled from real-time operations handled by Service A (N
 - Aggregate transactional data into analytical fact tables
 - Prepare data for machine learning models
 - Serve forecast results via internal APIs
+- Expose cached, versioned demand forecasts via internal read-only APIs
+
 
 ## Architectural Pattern
 - Microservices-lite
 - Event-driven (Change Data Capture)
 - Dual-world data model (OLTP vs OLAP)
+- Cache-aware analytics serving
+
 
 ## Why Python + FastAPI
 - Python ecosystem for analytics and ML
 - FastAPI for async I/O and internal service communication
 - CPU-heavy tasks isolated from real-time traffic
+
+
+
+## Service Lifecycle
+
+The analytics service performs two concurrent responsibilities:
+
+- Background ingestion via MongoDB Change Streams
+- Foreground query handling via FastAPI endpoints
+
+Change stream listeners are started at application boot and run asynchronously,
+ensuring ingestion does not block API responsiveness.
+

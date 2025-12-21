@@ -254,3 +254,328 @@ A clean Feature Engineering layer ensures that forecasting models remain:
 * Reliable
 
 ---
+
+# Phase 4 — Forecasting Engine
+
+### Goal
+
+Generate **explainable, SKU-level demand forecasts** using a lightweight ML model that is:
+
+* fast to train
+* safe to operate
+* easy to reason about
+* suitable for production backends
+
+This phase focuses on **engineering correctness**, not algorithmic complexity.
+
+---
+
+## Overview
+
+The forecasting engine is implemented as a **stateless service layer** that trains a **separate Linear Regression model per SKU** on demand.
+
+Key characteristics:
+
+* No long-lived model storage (MVP)
+* No cross-SKU coupling
+* Deterministic, repeatable forecasts
+* Recursive multi-day prediction
+* Simple confidence metric for interpretability
+
+---
+
+## Forecasting Flow
+
+```text
+Load Aggregated Sales History (per SKU)
+            ↓
+Build Feature Matrix
+(lag_1, lag_7, lag_14, rolling_mean_7, trend_index)
+            ↓
+Train Linear Regression Model
+            ↓
+Evaluate Model Fit (R² score)
+            ↓
+Generate Day T+1 Prediction
+            ↓
+Append Prediction to History
+            ↓
+Recompute Features for Next Day
+            ↓
+Repeat Until Forecast Horizon Reached
+```
+
+---
+
+## Why Recursive Forecasting?
+
+Instead of predicting all future days in one step, the system:
+
+* predicts **one day at a time**
+* feeds each prediction back into the feature set
+* preserves temporal dependencies
+
+This mirrors how real forecasting systems operate when future ground truth is unavailable.
+
+---
+
+## Model Choice: Linear Regression
+
+The project intentionally uses **Linear Regression** for the MVP.
+
+### Why this is a good engineering choice
+
+* Fully explainable
+* Extremely fast to train
+* Stable with small datasets
+* Easy to debug and reason about
+* No hyperparameter tuning required
+
+This ensures the focus remains on **pipeline correctness and system design**, not model complexity.
+
+---
+
+## Confidence Scoring
+
+Each forecast includes a **confidence score** derived from the model’s **R² value** on historical data.
+
+While simple, this provides:
+
+* a sanity check for predictions
+* transparency for downstream services
+* a foundation for future improvements
+
+The confidence score is treated as **informational**, not probabilistic.
+
+---
+
+## System Boundaries
+
+To maintain clean separation of concerns:
+
+The forecasting engine **does**:
+
+* consume feature-engineered data
+* train a model per SKU
+* generate multi-day forecasts
+* return numeric predictions + confidence
+
+The forecasting engine **does not**:
+
+* query raw databases directly
+* perform feature engineering
+* expose APIs
+* manage caching or persistence logic
+
+---
+
+## Why This Phase Matters
+
+Phase 4 demonstrates:
+
+* practical ML engineering
+* feature-driven forecasting
+* recursive prediction logic
+* explainability-first design
+
+This phase bridges the gap between **data preparation** and **production analytics**, making the system interview-ready without unnecessary complexity.
+
+---
+
+
+# Phase 5 — Analytics API Layer
+
+### Goal
+
+Expose **forecasting results** from the analytics service in a **stable, cache-aware, read-only API** that can be safely consumed by the operational backend (Node.js) and frontend dashboards.
+
+This phase turns the analytics engine into a **production-facing service**, not an internal script.
+
+---
+
+## Overview
+
+The Analytics API is designed with the following principles:
+
+* **No blind recomputation** — forecasts are reused when possible
+* **Deterministic GET requests** — same input, same output
+* **Clear separation of concerns** — API orchestration only
+* **Explainable responses** — business-ready, not ML-internal data
+
+Node.js handles *real-time operations* (“Now”), while this service exposes *predictive insights* (“Future”).
+
+---
+
+## Forecast Endpoint
+
+### Endpoint
+
+```http
+GET /predict/{sku}?days=7
+```
+
+### Description
+
+Returns a **multi-day demand forecast** for a given product SKU.
+
+The endpoint first checks whether a **valid, up-to-date forecast** already exists.
+If a cached forecast is stale or insufficient, it is **regenerated and persisted** before being returned.
+
+```
+
+         Client Request
+                ↓
+     Validate SKU & Query Parameters
+                ↓
+       Lookup Cached Forecast
+                ↓
+┌──────────────────────────────────────┐
+│ Is a valid & up-to-date forecast     │
+│ available for this SKU and horizon?  │
+└──────────────┬───────────────────────┘
+               │ Yes
+               ↓
+      Return Cached Forecast
+               │
+               │ No
+               ↓
+     Regenerate Forecast
+               ↓
+   Persist Forecast to Database
+               ↓
+        Return New Forecast
+```        
+
+
+This ensures:
+
+* Low latency for repeated reads
+* Predictable system behavior
+* Controlled ML execution
+
+---
+
+## Forecast Staleness Rules
+
+A forecast is considered **stale** if **any** of the following conditions are met:
+
+* Forecast age exceeds a configured TTL (e.g. 24 hours)
+* Aggregation logic version has changed
+* Model version has changed
+* Cached forecast horizon is shorter than requested
+
+This design enables **safe evolution** of:
+
+* aggregation logic
+* feature engineering
+* forecasting models
+
+without breaking consumers.
+
+---
+
+## Response Schema
+
+The API returns a **business-consumable forecast**, not raw ML artifacts.
+
+### Example Response
+
+```json
+{
+  "sku": "DELL-MON-24",
+  "forecast_horizon_days": 7,
+  "generated_at": "2025-12-20T10:15:00Z",
+  "model_version": "lr_v1",
+  "confidence_score": 0.82,
+  "predictions": [
+    { "date": "2025-12-21", "expected_units": 42 },
+    { "date": "2025-12-22", "expected_units": 39 }
+  ],
+  "metadata": {
+    "data_points_used": 120,
+    "aggregation_version": "v1.0",
+    "notes": "Recursive linear regression forecast"
+  }
+}
+```
+
+### Why This Matters
+
+* Frontend dashboards can plot results immediately
+* Node.js can forward or cache responses safely
+* ML internals remain fully encapsulated
+* Response contract remains stable over time
+
+---
+
+## API Design Constraints
+
+To maintain reliability and clarity, the API layer **does not**:
+
+* Perform feature engineering
+* Train models directly
+* Run Pandas or Scikit-Learn code
+* Execute MongoDB aggregations
+
+All heavy computation is delegated to **internal services**, keeping the API thin and predictable.
+
+---
+
+## Service Bootstrap & Lifecycle
+
+### Startup Behavior
+
+On application startup:
+
+* A background **Change Data Capture (CDC) listener** is initialized
+* The listener runs asynchronously and does not block the API
+* Structured logs are emitted for observability
+
+This allows the analytics service to **ingest events and serve forecasts concurrently**.
+
+---
+
+## Health Check Endpoint
+
+### Endpoint
+
+```http
+GET /health
+```
+
+### Purpose
+
+Provides a lightweight status check for:
+
+* Service availability
+* MongoDB connectivity
+* Basic operational readiness
+
+### Example Response
+
+```json
+{
+  "service": "analytics-service",
+  "status": "healthy",
+  "mongo": "connected",
+  "uptime_seconds": 8421
+}
+```
+
+This endpoint allows the operational backend (Node.js) and deployment tools to verify service health safely.
+
+---
+
+## Why This Phase Is Important
+
+Phase 5 completes the transition from **analytics pipeline** to **analytics service**.
+
+It demonstrates:
+
+* Cache-aware API design
+* Safe ML integration into backend systems
+* Clear OLTP / OLAP separation
+* Production-grade service boundaries
+
+This is the point where the system becomes **consumable, scalable, and interview-ready**.
+
