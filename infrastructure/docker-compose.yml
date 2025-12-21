@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  # -----------------------------
+  # Service A: Operational (Node)
+  # -----------------------------
+  service-operational:
+    build:
+      context: ../service-operational
+      dockerfile: Dockerfile
+    container_name: inventory-operational
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - MONGO_URI=${MONGO_URI}
+      - JWT_SECRET=${JWT_SECRET}
+      # Internal Docker DNS name for Service B
+      - ANALYTICS_SERVICE_URL=http://service-analytics:8000
+    networks:
+      - inventory-network
+    depends_on:
+      - service-analytics
+
+  # ---------------------------
+  # Service B: Analytics (Python)
+  # ---------------------------
+  service-analytics:
+    build:
+      context: ../service-analytics
+      dockerfile: Dockerfile
+    container_name: inventory-analytics
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGO_URI=${MONGO_URI}
+      - DB_NAME=inventory_analytics
+    networks:
+      - inventory-network
+
+networks:
+  inventory-network:
+    driver: bridge

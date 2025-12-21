@@ -1,8 +1,10 @@
 
+# 🧠 Intelligent Supply Chain / Inventory Command Center
 
-# Intelligent Supply Chain / Inventory Command Center
+> **Status:** MVP Complete (Dockerized Backend)
+> **Stack:** Node.js (OLTP), Python (OLAP), MongoDB Atlas, Docker, Socket.io
 
-## Overview
+## 📖 Overview
 
 A microservices-based inventory analytics platform that separates real-time operations
 from analytical and forecasting workloads.
@@ -11,19 +13,48 @@ The system mirrors real-world enterprise inventory architectures using **event-d
 
 ---
 
-## Architecture
+## 🏗️ Architecture
 
-* **Service A (Node.js)**: Operational core (OLTP, real-time writes, WebSockets)
-* **Service B (Python + FastAPI)**: Analytics & forecasting engine (OLAP)
-* **MongoDB Atlas**: Shared persistence layer with logical OLTP / OLAP separation
+The system follows a **Microservices** pattern with two distinct services sharing a data layer, fully orchestrated via Docker.
+
+| Service | Technology | Responsibility |
+| :--- | :--- | :--- |
+| **Service A (Operational)** | Node.js + Express | Handles high-throughput CRUD (Orders, Products), Auth, and Real-time WebSockets. |
+| **Service B (Analytics)** | Python + FastAPI | Listens to data changes asynchronously to retrain models and generate forecasts. |
+| **Infrastructure** | Docker Compose | Orchestrates services with internal networking and environment injection. |
+| **Database** | MongoDB Atlas | Shared persistence layer with logical OLTP / OLAP separation. |
 
 This design ensures heavy analytical workloads never block real-time user actions.
 
 ---
 
-## Current Implementation Status
+## 🚀 How to Run (Docker)
 
-### ✅ Completed
+The entire backend infrastructure is containerized. You do not need Node.js or Python installed locally, only Docker.
+
+### 1. Prerequisites
+* **Docker Desktop** installed & running.
+* A `.env` file in the `infrastructure/` folder containing your `MONGO_URI`.
+
+### 2. Start the System
+```bash
+cd infrastructure
+docker-compose up --build -d
+
+```
+
+### 3. Verify Connectivity
+
+* **Operational API (Node):** `http://localhost:4000/health` (or check logs)
+* **Analytics API (Python):** `http://localhost:8000/health` (via internal Docker network)
+
+> **Note:** Service B (Python) is accessible to Service A via the internal hostname `http://service-analytics:8000`.
+
+---
+
+## ✅ Current Implementation Status
+
+### Completed
 
 ✔ Event-driven analytics pipeline (CDC via MongoDB Change Streams)
 ✔ Immutable raw sales events data lake
@@ -31,10 +62,11 @@ This design ensures heavy analytical workloads never block real-time user action
 ✔ Feature engineering layer (ML-ready signals)
 ✔ **Forecasting engine with explainable ML (Phase 4)**
 ✔ **Forecast persistence & read-optimized API**
+✔ **Full Dockerization of Backend Services**
 
 ---
 
-## Analytics Pipeline (Implemented)
+## 📊 Analytics Pipeline (Deep Dive)
 
 ```text
 Orders (OLTP)
@@ -50,22 +82,20 @@ Feature Engineering (ML-ready signals)
 Forecasting Engine (Linear Regression)
    ↓
 Persisted Forecasts (Read-Optimized)
+
 ```
 
 ---
 
-## Feature Engineering (Phase 3)
+## 🛠️ Feature Engineering (Phase 3)
 
 The feature engineering layer converts aggregated business data into **explainable numerical signals** suitable for machine learning.
 
 ### Implemented Features
 
-* **Lag features (1, 7, 14 days)**
-  Capture short-term memory, weekly seasonality, and medium-term momentum.
-* **7-day rolling mean (leakage-safe)**
-  Smooths daily noise using past-only data.
-* **Trend index (directionality)**
-  Captures demand momentum using recent historical change.
+* **Lag features (1, 7, 14 days):** Capture short-term memory, weekly seasonality, and medium-term momentum.
+* **7-day rolling mean (leakage-safe):** Smooths daily noise using past-only data.
+* **Trend index (directionality):** Captures demand momentum using recent historical change.
 
 ### Guarantees
 
@@ -74,11 +104,11 @@ The feature engineering layer converts aggregated business data into **explainab
 * No data leakage
 * Numeric-only, non-null ML-ready output
 
-> **Features matter more than algorithms.**
+> **"Features matter more than algorithms."**
 
 ---
 
-## Forecasting Engine (Phase 4)
+## 🔮 Forecasting Engine (Phase 4)
 
 The forecasting engine generates **explainable, multi-day demand predictions** using engineered time-series features.
 
@@ -106,12 +136,13 @@ The forecasting engine generates **explainable, multi-day demand predictions** u
 
 ---
 
-## Forecast API (Read Path)
+## 📡 Forecast API (Read Path)
 
 Forecasts are exposed via a **read-only, low-latency API**.
 
 ```http
 GET /api/forecast/{sku}
+
 ```
 
 ### Behavior
@@ -121,106 +152,59 @@ GET /api/forecast/{sku}
 * Ensures consistent, reproducible results for dashboards
 
 ---
-🔄 Model Lifecycle & Forecast Execution (Important Clarifications)
-Model Lifecycle (Training & Persistence)
+
+## 🔄 Model Lifecycle & Design Decisions
+
+### Model Training & Persistence
 
 For the current MVP implementation:
 
-Forecasting models are trained on-the-fly per SKU when a forecast is generated.
+* **On-the-fly Training:** Forecasting models are trained per SKU when a forecast is generated.
+* **No Model Storage:** Trained models are not persisted; only the **forecast outputs** (predictions + confidence score) are stored.
 
-Trained models are not persisted or versioned.
+**Why?**
 
-Only the forecast outputs (predictions + confidence score) are stored in the database.
+* Keeps the system simple and explainable.
+* Avoids premature model registry complexity.
+* Supports rapid iteration during development.
 
-This design was chosen intentionally to:
+### Forecast Triggering Strategy
 
-Keep the system simple and explainable
+* **Current:** Forecast generation is triggered manually or via script to allow controlled testing of the pipeline (OLAP read → feature engineering → ML → persistence).
+* **Future (Production):** Automated using a scheduler (e.g., cron jobs, Airflow) to run periodically.
 
-Avoid premature model registry complexity
+---
 
-Support rapid iteration during development
+## 💻 Tech Stack
 
-In a production-grade system, trained models could be versioned and persisted (e.g., model registry, serialized artifacts) to support reuse, comparison, and offline evaluation.
+### Infrastructure
 
-Forecast Triggering Strategy
+* **Docker & Docker Compose**
+* **MongoDB Atlas** (Replica Set + Change Streams)
 
-In the current implementation:
+### Service A (Operational)
 
-Forecast generation is triggered manually or via script (e.g., trigger_forecast.py).
+* Node.js
+* Express
+* Socket.io (Real-time updates)
+* Mongoose
 
-This allows controlled testing and verification of the full pipeline:
+### Service B (Analytics)
 
-OLAP read → feature engineering → ML → persistence
-
-This approach is sufficient for MVP validation and development.
-
-In a production environment, forecast generation would typically be automated using a scheduler (e.g., cron jobs, Airflow, or a workflow orchestrator) to run periodically or in response to new data availability.
-
-Design Philosophy Behind These Choices
-
-These decisions reflect a deliberate MVP-first strategy:
-
-Prioritize correctness, explainability, and architecture clarity
-
-Defer infrastructure-heavy components until the core pipeline is validated
-
-Ensure every part of the system can be reasoned about and debugged easily
-
-## Tech Stack
-
-### Backend
-
-* Python 3.9+
+* Python 3.11 (Slim Image)
 * FastAPI
 * Motor (Async MongoDB)
 * Pandas, NumPy
 * Scikit-Learn (Linear Regression)
 
-### Database
-
-* MongoDB Atlas
-
-  * Replica Set
-  * Change Streams enabled
-
 ---
 
-## Why This Architecture
+## 🎯 Project Philosophy
 
-* Prevents analytical workloads from blocking real-time operations
-* Enables scalable, replayable analytics pipelines
-* Supports explainable and auditable ML predictions
-* Mirrors enterprise-grade inventory & data warehouse systems
-
----
-
-## How to Run (Service A – Operational)
-
-```bash
-cd service-operational
-npm install
-npm run dev
-```
+* **Finish MVP cleanly** before adding complexity.
+* **Prefer explainable models** over black-box accuracy.
+* **Separate** data ingestion, transformation, and prediction clearly.
+* **Treat documentation** and architecture as first-class deliverables.
 
 ---
-
-## How to Run (Service B – Analytics)
-
-```bash
-cd service-analytics
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
-
----
-
-## Project Philosophy
-
-* Finish MVP cleanly before adding complexity
-* Prefer explainable models over black-box accuracy
-* Separate data ingestion, transformation, and prediction clearly
-* Treat documentation and architecture as first-class deliverables
-
----
-
 
