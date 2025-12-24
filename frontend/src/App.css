@@ -1,10 +1,14 @@
+/* Remove all default constraints */
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  text-align: left; /* Reset default center alignment */
 }
 
+/* Optional: Keep logo animations if you use them elsewhere, 
+   otherwise you can delete the rest of this file. */
 .logo {
   height: 6em;
   padding: 1.5em;
@@ -31,12 +35,4 @@
   a:nth-of-type(2) .logo {
     animation: logo-spin infinite 20s linear;
   }
-}
-
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
 }

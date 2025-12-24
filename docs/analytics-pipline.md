@@ -535,6 +535,145 @@ This allows the analytics service to **ingest events and serve forecasts concurr
 
 ---
 
+# Phase 6 — Model Tuning & Signal Enhancement
+
+### Goal
+
+Improve **forecast explainability and confidence** by addressing **data realism and signal quality**, without increasing model complexity.
+
+This phase focuses on **why the model performs the way it does**, not on replacing the algorithm.
+
+> The objective is to validate the ML pipeline, not to maximize benchmark accuracy.
+
+---
+
+## Motivation
+
+During early testing, the forecasting model produced a **low confidence score (R² ≈ 0.37)**.
+
+This was **not caused by model limitations**, but by the nature of the **synthetic data** used for testing:
+
+- High random variance
+- Weak seasonality
+- Poor autocorrelation
+- Features with little predictive power
+
+This phase exists to **separate data issues from model issues**.
+
+---
+
+## Strategy
+
+Instead of switching algorithms, Phase 6 applies a **data-first tuning approach**.
+
+### Core Principle
+
+> **Better data beats better models.**
+
+The model remains unchanged (Linear Regression).  
+All improvements come from **improving the signal-to-noise ratio** in training data.
+
+---
+
+## Synthetic Data Redesign
+
+The seeding process was rewritten to generate **structured, learnable demand signals**.
+
+### Injected Signal Components
+
+| Component | Purpose |
+|--------|--------|
+| Linear Trend | Captures long-term demand growth or decay |
+| Weekly Seasonality | Aligns with `lag_7` and rolling features |
+| Autocorrelation | Ensures short-term momentum (`lag_1`) |
+| Controlled Noise | Preserves realism without destroying patterns |
+| Constraints | Prevents negative or unrealistic demand |
+
+### Noise Design
+
+- Gaussian noise (`np.random.normal`)
+- Low standard deviation
+- No discrete random jumps
+
+This ensures the data remains:
+- Predictable
+- ML-safe
+- Representative of retail demand behavior
+
+---
+
+## Results
+
+### Observed Outcome
+
+- **Confidence Score (R²): ~0.95** on structured synthetic data
+
+### Interpretation
+
+This confirms that:
+
+- Feature engineering logic is correct
+- Recursive forecasting behaves as expected
+- The earlier low R² was a **data design issue**, not a modeling issue
+
+> High R² here validates the pipeline — **not real-world accuracy**.
+
+---
+
+## Important Clarification
+
+The improved confidence score **does not represent production performance**.
+
+In real-world data, demand is affected by:
+- Promotions
+- Stockouts
+- Holidays
+- External market forces
+
+These factors reduce explainability and are **intentionally excluded** from the MVP.
+
+Phase 6 validates **system correctness**, not business guarantees.
+
+---
+
+## What This Phase Does NOT Do
+
+By design, Phase 6 does **not** introduce:
+
+- Deep learning models
+- Prophet / ARIMA
+- Hyperparameter optimization
+- GPU acceleration
+- Online learning
+
+Explainability, stability, and architectural clarity take priority.
+
+---
+
+## Engineering Takeaways
+
+- Data quality dominates ML performance
+- Feature alignment matters more than algorithm choice
+- R² must be interpreted in context
+- Synthetic data should validate logic, not simulate reality perfectly
+
+---
+
+## Pipeline Position
+
+```text
+Raw Events
+   ↓
+Daily Sales Snapshots
+   ↓
+Feature Engineering
+   ↓
+Forecasting Engine
+   ↓
+Model Tuning & Validation  ← (Phase 6)
+
+---
+
 ## Health Check Endpoint
 
 ### Endpoint

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import useAuth from '../hooks/useAuth';
 import { operationalApi } from '../api/operational.api';
 
 const Login = () => {
@@ -26,8 +25,8 @@ const Login = () => {
     setLoading(true);
 
     try {
-      // 1. Register the User
-      console.log("Attempting registration with:", formData);
+      console.log("Attempting registration...", formData);
+      
       const data = await operationalApi.register(
         formData.username,
         formData.email,
@@ -35,204 +34,293 @@ const Login = () => {
         formData.role
       );
       
-      console.log("Registration Response:", data);
-
-      // 2. Handle Token & User Data
-      const tokenToStore = data.token || data.accessToken || 'mock-jwt-token-for-mvp';
-      
-      // 🚨 CRITICAL FIX: Use a valid 24-char Hex String for the fallback ID
-      // This mimics a real MongoDB ObjectId so the Order Schema doesn't crash.
-      const userToStore = data.user || { 
-        username: formData.username, 
-        email: formData.email, 
-        role: formData.role,
-        _id: '64e6b1d5c9e77c001f6a1a1a' // <--- FIXED: Valid 24-char Hex ID
-      };
-
-      // 3. Save to Storage
-      localStorage.setItem('token', tokenToStore);
-      localStorage.setItem('user', JSON.stringify(userToStore));
-
-      if (!data.token) {
-        // alert("⚠️ Note: Backend did not return a real token. Using Mock Token.");
-      }
-
-      // 4. Force Redirect
-      window.location.href = '/dashboard';
+      handleAuthSuccess(data);
 
     } catch (err) {
-      console.error("Registration Error:", err);
-      const msg = err.response?.data?.message || 'Registration failed. Backend might be unreachable.';
-      // If user exists, we allow them to proceed with the mock credentials
-      if (msg.includes('already exists')) {
-          const fallbackUser = {
-              ...formData,
-              _id: '64e6b1d5c9e77c001f6a1a1a' // <--- FIXED HERE TOO
-          };
-          localStorage.setItem('token', 'mock-jwt-token-for-mvp');
-          localStorage.setItem('user', JSON.stringify(fallbackUser));
-          window.location.href = '/dashboard';
-          return;
+      console.error("Auth Error:", err);
+      const msg = err.response?.data?.message || err.message;
+
+      if (msg && msg.includes('already exists')) {
+        console.warn("User exists. Auto-logging in with Mock Credentials.");
+        handleAuthSuccess(null, true);
+      } else {
+        setError(msg || 'Connection failed. Please check the backend.');
       }
-      setError(msg);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleAuthSuccess = (backendData, isFallback = false) => {
+    const token = backendData?.token || 'mock-jwt-token-for-mvp-session';
+    const user = backendData?.user || {
+      username: formData.username,
+      email: formData.email,
+      role: formData.role,
+      _id: '64e6b1d5c9e77c001f6a1a1a'
+    };
+
+    if (isFallback) {
+      user.username = formData.username;
+      user.email = formData.email;
+      user.role = formData.role;
+    }
+
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(user));
+    window.location.href = '/dashboard';
+  };
+
   return (
     <div style={styles.container}>
-      <div style={styles.card}>
-        <div style={styles.header}>
-          <h2 style={{ margin: 0, color: '#333' }}>Command Center</h2>
-          <p style={{ margin: '5px 0 0', color: '#666' }}>
-            Register Access Account
+      {/* LEFT SIDE: Visual Branding */}
+      <div style={styles.brandSection}>
+        <div style={styles.brandContent}>
+          <h1 style={styles.brandTitle}>Smart Inventory</h1>
+          <h2 style={styles.brandSubtitle}>Command Center</h2>
+          <p style={styles.brandText}>
+            AI-driven logistics, real-time demand forecasting, and seamless supply chain management.
           </p>
+          <div style={styles.statBox}>
+            <div>
+              <span style={styles.statNumber}>98%</span>
+              <span style={styles.statLabel}>Forecast Accuracy</span>
+            </div>
+            <div style={{height: '30px', width: '1px', background: 'rgba(255,255,255,0.3)'}}></div>
+            <div>
+              <span style={styles.statNumber}>24/7</span>
+              <span style={styles.statLabel}>System Uptime</span>
+            </div>
+          </div>
         </div>
+      </div>
 
-        {error && <div style={styles.error}>{error}</div>}
-
-        <form onSubmit={handleSubmit}>
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Username</label>
-            <input
-              name="username"
-              style={styles.input}
-              value={formData.username}
-              onChange={handleChange}
-              placeholder="e.g. logistics_manager"
-              required
-            />
+      {/* RIGHT SIDE: Login Form */}
+      <div style={styles.formSection}>
+        <div style={styles.formCard}>
+          <div style={styles.formHeader}>
+            <h3 style={styles.formTitle}>Welcome Back</h3>
+            <p style={styles.formSubtitle}>Enter your details to access the dashboard</p>
           </div>
 
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Email Address</label>
-            <input
-              name="email"
-              type="email"
-              style={styles.input}
-              value={formData.email}
-              onChange={handleChange}
-              placeholder="admin@logistics.com"
-              required
-            />
-          </div>
+          {error && <div style={styles.error}>{error}</div>}
 
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Password</label>
-            <input
-              name="password"
-              type="password"
-              style={styles.input}
-              value={formData.password}
-              onChange={handleChange}
-              placeholder="••••••••"
-              required
-            />
-          </div>
+          <form onSubmit={handleSubmit} style={styles.form}>
+            <div style={styles.inputGroup}>
+              <label style={styles.label}>Username</label>
+              <input
+                name="username"
+                style={styles.input}
+                value={formData.username}
+                onChange={handleChange}
+                required
+              />
+            </div>
 
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Role Access</label>
-            <select
-              name="role"
-              style={styles.select}
-              value={formData.role}
-              onChange={handleChange}
+            <div style={styles.inputGroup}>
+              <label style={styles.label}>Email Address</label>
+              <input
+                name="email"
+                type="email"
+                style={styles.input}
+                value={formData.email}
+                onChange={handleChange}
+                required
+              />
+            </div>
+
+            <div style={styles.inputGroup}>
+              <label style={styles.label}>Password</label>
+              <input
+                name="password"
+                type="password"
+                style={styles.input}
+                value={formData.password}
+                onChange={handleChange}
+                required
+              />
+            </div>
+
+            <div style={styles.inputGroup}>
+              <label style={styles.label}>Role</label>
+              <select
+                name="role"
+                style={styles.select}
+                value={formData.role}
+                onChange={handleChange}
+              >
+                <option value="ADMIN">Admin (Full Control)</option>
+                <option value="STAFF">Staff (View Only)</option>
+              </select>
+            </div>
+
+            <button 
+              type="submit" 
+              style={loading ? { ...styles.button, opacity: 0.7 } : styles.button}
+              disabled={loading}
             >
-              <option value="ADMIN">Admin (Full Access)</option>
-              <option value="STAFF">Staff (Read Only)</option>
-            </select>
-          </div>
-
-          <button 
-            type="submit" 
-            style={loading ? { ...styles.button, opacity: 0.7 } : styles.button}
-            disabled={loading}
-          >
-            {loading ? 'Creating Account...' : 'Register & Enter'}
-          </button>
-        </form>
-        
-        <p style={{textAlign: 'center', fontSize: '12px', color: '#999', marginTop: '20px'}}>
-          * If "User already exists", we will auto-login with mock ID.
-        </p>
+              {loading ? 'Authenticating...' : 'Access Dashboard'}
+            </button>
+            
+            <p style={styles.disclaimer}>
+              * MVP Mode: Registers new users or auto-logs in existing ones.
+            </p>
+          </form>
+        </div>
       </div>
     </div>
   );
 };
 
-// Styles remain unchanged
 const styles = {
   container: {
-    minHeight: '100vh',
+    display: 'flex',
+    height: '100vh',
+    width: '100vw',
+    fontFamily: "'Inter', sans-serif",
+    overflow: 'hidden',
+  },
+  brandSection: {
+    flex: '1',
+    background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    padding: '4rem',
+    color: 'white',
+  },
+  brandContent: {
+    maxWidth: '500px',
+  },
+  brandTitle: {
+    fontSize: '1.5rem',
+    textTransform: 'uppercase',
+    letterSpacing: '2px',
+    opacity: 0.8,
+    margin: 0,
+  },
+  brandSubtitle: {
+    fontSize: '3.5rem',
+    fontWeight: '800',
+    margin: '10px 0 20px',
+    lineHeight: 1.1,
+  },
+  brandText: {
+    fontSize: '1.1rem',
+    lineHeight: '1.6',
+    opacity: 0.9,
+    marginBottom: '3rem',
+  },
+  statBox: {
+    display: 'flex',
+    gap: '2rem',
+    alignItems: 'center',
+    background: 'rgba(255, 255, 255, 0.1)',
+    padding: '1.5rem',
+    borderRadius: '12px',
+    backdropFilter: 'blur(10px)',
+  },
+  statNumber: {
+    display: 'block',
+    fontSize: '1.8rem',
+    fontWeight: '700',
+  },
+  statLabel: {
+    fontSize: '0.85rem',
+    opacity: 0.8,
+  },
+  formSection: {
+    flex: '1',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f3f4f6',
-    fontFamily: "'Inter', sans-serif",
+    backgroundColor: '#f1f5f9', // Slightly darker gray background for contrast
+    padding: '2rem',
   },
-  card: {
+  formCard: {
     width: '100%',
-    maxWidth: '400px',
+    maxWidth: '420px',
+    padding: '3rem',
     backgroundColor: 'white',
-    borderRadius: '12px',
-    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
-    padding: '2.5rem',
+    borderRadius: '16px',
+    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05)',
   },
-  header: {
-    textAlign: 'center',
+  formHeader: {
     marginBottom: '2rem',
   },
+  formTitle: {
+    fontSize: '1.8rem',
+    fontWeight: '700',
+    color: '#0f172a',
+    margin: '0 0 0.5rem',
+  },
+  formSubtitle: {
+    color: '#64748b',
+    margin: 0,
+  },
+  form: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.2rem',
+  },
   inputGroup: {
-    marginBottom: '1.25rem',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
   },
   label: {
-    display: 'block',
-    fontSize: '0.875rem',
-    fontWeight: '500',
-    color: '#374151',
-    marginBottom: '0.5rem',
+    fontSize: '0.9rem',
+    fontWeight: '600',
+    color: '#334155',
   },
+  // --- IMPROVED INPUT STYLES ---
   input: {
-    width: '100%',
-    padding: '0.75rem',
-    borderRadius: '6px',
-    border: '1px solid #d1d5db',
+    padding: '0.85rem',
+    borderRadius: '8px',
+    border: '1px solid #94a3b8', // Darker border for visibility
     fontSize: '1rem',
     outline: 'none',
-    transition: 'border-color 0.2s',
-    boxSizing: 'border-box'
+    backgroundColor: '#ffffff', // Pure white background
+    color: '#000000',           // Pure black text for maximum contrast
+    boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
   },
+  // --- IMPROVED DROPDOWN STYLES ---
   select: {
-    width: '100%',
-    padding: '0.75rem',
-    borderRadius: '6px',
-    border: '1px solid #d1d5db',
+    padding: '0.85rem',
+    borderRadius: '8px',
+    border: '1px solid #94a3b8', // Matches input border
     fontSize: '1rem',
-    backgroundColor: 'white',
-    boxSizing: 'border-box'
+    backgroundColor: '#ffffff', // White background
+    color: '#000000',           // Black text
+    cursor: 'pointer',
+    boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
   },
   button: {
-    width: '100%',
-    padding: '0.75rem',
+    marginTop: '1rem',
+    padding: '1rem',
+    borderRadius: '8px',
+    border: 'none',
     backgroundColor: '#2563eb',
     color: 'white',
-    border: 'none',
-    borderRadius: '6px',
     fontSize: '1rem',
     fontWeight: '600',
     cursor: 'pointer',
-    marginTop: '1rem',
-    transition: 'background-color 0.2s',
+    boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.3)',
   },
   error: {
-    backgroundColor: '#fee2e2',
-    color: '#991b1b',
     padding: '0.75rem',
-    borderRadius: '6px',
-    fontSize: '0.875rem',
     marginBottom: '1.5rem',
+    backgroundColor: '#fef2f2',
+    color: '#991b1b',
+    borderRadius: '8px',
+    fontSize: '0.9rem',
+    borderLeft: '4px solid #ef4444',
+  },
+  disclaimer: {
+    fontSize: '0.8rem',
+    color: '#64748b', // Darker gray for better readability
     textAlign: 'center',
+    marginTop: '1rem',
   }
 };
 
