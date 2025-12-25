@@ -1,27 +1,48 @@
 // service-operational/src/services/auth.service.js
 import User from '../models/User.model.js';
+import jwt from 'jsonwebtoken';
+// import bcrypt from 'bcryptjs'; // <--- Commented out: Not used for plain text
 
-/**
- * Handles the business logic for registering a user:
- * 1. Checks if email is already taken
- * 2. Creates the user in the database
- * 3. Returns the clean user object
- */
+// Register Service
 export const registerUserService = async (username, email, password, role) => {
-  // 1. Check for duplicates
   const userExists = await User.findOne({ email });
   if (userExists) {
     throw new Error('User already exists');
   }
-
-  // 2. Create User
-  // Note: Password hashing should happen here or in a pre-save hook in the Model
-  const user = await User.create({
-    username,
-    email,
-    password, 
-    role: role || 'STAFF'
-  });
-
+  
+  // WARNING: Storing password in plain text!
+  const user = await User.create({ username, email, password, role });
   return user;
+};
+
+// Login Service
+export const loginService = async (email, password) => {
+  // 1. Find User
+  const user = await User.findOne({ email });
+  if (!user) {
+    throw new Error('Invalid credentials');
+  }
+
+  // 2. Verify Password (DIRECT STRING COMPARISON)
+  // We check if the input password exactly matches the database field
+  if (password !== user.password) {
+    throw new Error('Invalid credentials');
+  }
+
+  // 3. Generate Token
+  const token = jwt.sign(
+    { id: user._id, role: user.role },
+    process.env.JWT_SECRET || 'your_jwt_secret_key', 
+    { expiresIn: '24h' }
+  );
+
+  return {
+    token,
+    user: {
+      id: user._id,
+      username: user.username,
+      email: user.email,
+      role: user.role
+    }
+  };
 };

@@ -10,6 +10,15 @@ export const operationalApi = {
     return response.data;
   },
 
+  // [ADD THIS]
+  login: async (email, password) => {
+    const response = await httpClient.post('/api/auth/login', { 
+      email, password 
+    });
+    return response.data;
+  },
+  
+
   // Products (Inventory)
   getProducts: async () => {
     const response = await httpClient.get('/api/products');

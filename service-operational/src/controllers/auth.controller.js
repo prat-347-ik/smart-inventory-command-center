@@ -1,5 +1,6 @@
 // service-operational/src/controllers/auth.controller.js
 import { registerUserService } from '../services/auth.service.js';
+import { loginService } from '../services/auth.service.js';
 
 // @desc    Register a new user
 // @route   POST /api/auth/register
@@ -29,5 +30,25 @@ export const registerUser = async (req, res, next) => {
     // 4. Pass to global error middleware
     // If the error is "User already exists", the middleware will handle it safely
     next(error);
+  }
+};
+
+
+// @desc    Login user & get token
+// @route   POST /api/auth/login
+export const login = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    
+    // Call the service
+    const data = await loginService(email, password);
+    
+    res.json(data);
+  } catch (err) {
+    // If "Invalid credentials", send 401
+    if (err.message === 'Invalid credentials') {
+      return res.status(401).json({ message: err.message });
+    }
+    next(err);
   }
 };
