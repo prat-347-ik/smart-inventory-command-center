@@ -1,3 +1,4 @@
+// frontend/src/pages/Forecast.jsx
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { analyticsApi } from '../api/analytics.api';
@@ -9,7 +10,8 @@ const Forecast = () => {
   const { user, logout } = useAuth();
 
   // --- State ---
-  const [sku, setSku] = useState(''); // Manual Entry
+  const [sku, setSku] = useState(''); 
+  const [days, setDays] = useState(7); // <--- NEW STATE ADDED
   const [forecastResponse, setForecastResponse] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -26,8 +28,8 @@ const Forecast = () => {
     setError('');
     setForecastResponse(null);
     try {
-      // Default to 7 days forecast
-      const data = await analyticsApi.getForecast(sku, 7);
+      // Pass the user-selected 'days' instead of hardcoded 7
+      const data = await analyticsApi.getForecast(sku, days);
       setForecastResponse(data);
     } catch (err) {
       console.error(err);
@@ -46,7 +48,6 @@ const Forecast = () => {
           <div style={styles.logo}>SI</div>
           <h1 style={styles.brandName}>Smart Inventory</h1>
         </div>
-
         <div style={styles.userBox}>
           <div style={styles.avatar}>
             {user?.username?.charAt(0).toUpperCase() || 'U'}
@@ -56,7 +57,6 @@ const Forecast = () => {
             <span style={styles.userRole}>{user?.role || 'Staff'}</span>
           </div>
         </div>
-
         <nav style={styles.navMenu}>
           <Link to="/dashboard" style={styles.navItem}>
             <span style={styles.navIcon}>📊</span> Dashboard
@@ -71,7 +71,6 @@ const Forecast = () => {
             <span style={styles.navIcon}>📈</span> Forecasts
           </Link>
         </nav>
-
         <div style={styles.sidebarFooter}>
           <button onClick={handleLogout} style={styles.logoutBtn}>
             Sign Out
@@ -88,6 +87,8 @@ const Forecast = () => {
 
         {/* 1. Control Bar (Manual Entry) */}
         <div style={styles.controlBar}>
+          
+          {/* SKU Input */}
           <div style={styles.inputGroup}>
             <label style={styles.label}>Target SKU:</label>
             <input 
@@ -97,6 +98,20 @@ const Forecast = () => {
               style={styles.input}
             />
           </div>
+
+          {/* NEW: Horizon Input */}
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>Horizon (Days):</label>
+            <input 
+              type="number"
+              min="1"
+              max="90" 
+              value={days}
+              onChange={(e) => setDays(parseInt(e.target.value) || 7)}
+              style={{ ...styles.input, width: '120px' }}
+            />
+          </div>
+
           <button 
             onClick={fetchForecast} 
             disabled={loading || !sku}
@@ -135,7 +150,7 @@ const Forecast = () => {
               </div>
               <div style={styles.metricCard}>
                 <span style={styles.metricLabel}>Horizon</span>
-                <strong style={styles.metricValue}>7 Days</strong>
+                <strong style={styles.metricValue}>{forecastResponse.forecast_horizon_days} Days</strong>
               </div>
             </div>
 
@@ -165,7 +180,7 @@ const styles = {
     fontFamily: "'Inter', sans-serif",
   },
   
-  // Sidebar (Identical)
+  // Sidebar (Identical to before)
   sidebar: {
     width: '260px',
     backgroundColor: '#1e3a8a',
@@ -321,9 +336,8 @@ const styles = {
   input: {
     padding: '0.75rem 1rem',
     borderRadius: '8px',
-    border: '1px solid #94a3b8', // High contrast border
+    border: '1px solid #94a3b8',
     fontSize: '1rem',
-    width: '300px', 
     outline: 'none',
     backgroundColor: 'white',
     color: 'black',
@@ -338,7 +352,7 @@ const styles = {
     fontWeight: '600',
     cursor: 'pointer',
     boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.3)',
-    height: '46px', // Align with input
+    height: '46px',
   },
 
   // Alerts
@@ -404,7 +418,7 @@ const styles = {
   },
   chartWrapper: {
     width: '100%',
-    height: '400px', // Fixed height for chart
+    height: '400px',
   }
 };
 
