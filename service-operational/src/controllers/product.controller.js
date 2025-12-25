@@ -1,4 +1,4 @@
-import { getAllProductsService, createProductService } from '../services/inventory.service.js';
+import { getAllProductsService, createProductService, getProductBySkuService  } from '../services/inventory.service.js';
 import { processCsvUpload } from '../services/csvIngestion.service.js';
 import { notifyStockUpdate } from '../sockets/inventory.socket.js';
 
@@ -48,5 +48,23 @@ export const bulkUpload = async (req, res, next) => {
 
   } catch (error) {
     next(error);
+  }
+};
+
+// [ADD THIS NEW FUNCTION]
+// @desc    Get single product by SKU
+// @route   GET /api/products/:sku
+export const getProductBySku = async (req, res, next) => {
+  try {
+    const { sku } = req.params;
+    const product = await getProductBySkuService(sku);
+    
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    res.json(product);
+  } catch (err) {
+    next(err);
   }
 };

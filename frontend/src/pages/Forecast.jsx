@@ -2,8 +2,10 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { analyticsApi } from '../api/analytics.api';
+import { operationalApi } from '../api/operational.api'; // <--- UPDATED IMPORT
 import useAuth from '../hooks/useAuth';
 import SalesForecastChart from '../components/charts/SalesForecastChart';
+import InventoryBurnChart from '../components/charts/InventoryBurnChart'; // <--- NEW IMPORT
 
 const Forecast = () => {
   const navigate = useNavigate();
@@ -11,8 +13,9 @@ const Forecast = () => {
 
   // --- State ---
   const [sku, setSku] = useState(''); 
-  const [days, setDays] = useState(7); // <--- NEW STATE ADDED
+  const [days, setDays] = useState(7);
   const [forecastResponse, setForecastResponse] = useState(null);
+  const [productData, setProductData] = useState(null); // <--- NEW STATE (For stock levels)
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -27,13 +30,21 @@ const Forecast = () => {
     setLoading(true);
     setError('');
     setForecastResponse(null);
+    setProductData(null);
+
     try {
-      // Pass the user-selected 'days' instead of hardcoded 7
-      const data = await analyticsApi.getForecast(sku, days);
-      setForecastResponse(data);
+      // Fetch Forecast AND Product Details (Current Stock) in parallel
+      const [forecastResult, productResult] = await Promise.all([
+        analyticsApi.getForecast(sku, days),
+        operationalApi.getProduct(sku)
+      ]);
+
+      setForecastResponse(forecastResult);
+      setProductData(productResult);
+
     } catch (err) {
       console.error(err);
-      setError("Failed to generate forecast. Ensure the backend is running and SKU exists.");
+      setError("Failed to retrieve data. Ensure SKU exists and services are running.");
     } finally {
       setLoading(false);
     }
@@ -85,21 +96,18 @@ const Forecast = () => {
           <p style={styles.pageSubtitle}>AI-driven sales predictions to optimize stock levels.</p>
         </header>
 
-        {/* 1. Control Bar (Manual Entry) */}
+        {/* 1. Control Bar */}
         <div style={styles.controlBar}>
-          
-          {/* SKU Input */}
           <div style={styles.inputGroup}>
             <label style={styles.label}>Target SKU:</label>
             <input 
               value={sku} 
               onChange={(e) => setSku(e.target.value)} 
-              placeholder="e.g. SAM-G9-OLED"
+              placeholder="e.g. MACBOOK-PRO-M3"
               style={styles.input}
             />
           </div>
 
-          {/* NEW: Horizon Input */}
           <div style={styles.inputGroup}>
             <label style={styles.label}>Horizon (Days):</label>
             <input 
@@ -148,13 +156,19 @@ const Forecast = () => {
                   {forecastResponse.confidence_score?.toFixed(2) || 'N/A'}
                 </strong>
               </div>
+              {/* NEW: Current Stock Metric */}
               <div style={styles.metricCard}>
-                <span style={styles.metricLabel}>Horizon</span>
-                <strong style={styles.metricValue}>{forecastResponse.forecast_horizon_days} Days</strong>
+                <span style={styles.metricLabel}>Current Stock</span>
+                <strong style={{ 
+                  ...styles.metricValue,
+                  color: productData?.current_stock <= productData?.low_stock_threshold ? '#dc2626' : '#0f172a'
+                }}>
+                  {productData ? productData.current_stock : '-'}
+                </strong>
               </div>
             </div>
 
-            {/* Chart Card */}
+            {/* Chart 1: Forecast Curve */}
             <div style={styles.chartCard}>
               <h3 style={styles.chartTitle}>Projected Demand Curve</h3>
               <div style={styles.chartWrapper}>
@@ -164,6 +178,16 @@ const Forecast = () => {
                 />
               </div>
             </div>
+
+            {/* Chart 2: Inventory Burn Down (NEW) */}
+            {productData && (
+              <InventoryBurnChart 
+                currentStock={productData.current_stock}
+                forecastData={forecastResponse.forecast_data}
+                lowStockThreshold={productData.low_stock_threshold}
+              />
+            )}
+
           </div>
         )}
       </main>
@@ -179,8 +203,6 @@ const styles = {
     backgroundColor: '#f8fafc',
     fontFamily: "'Inter', sans-serif",
   },
-  
-  // Sidebar (Identical to before)
   sidebar: {
     width: '260px',
     backgroundColor: '#1e3a8a',
@@ -241,14 +263,8 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
   },
-  userName: {
-    fontSize: '0.9rem',
-    fontWeight: '600',
-  },
-  userRole: {
-    fontSize: '0.75rem',
-    opacity: 0.8,
-  },
+  userName: { fontSize: '0.9rem', fontWeight: '600' },
+  userRole: { fontSize: '0.75rem', opacity: 0.8 },
   navMenu: {
     display: 'flex',
     flexDirection: 'column',
@@ -271,9 +287,7 @@ const styles = {
     color: 'white',
     fontWeight: '600',
   },
-  navIcon: {
-    fontSize: '1.2rem',
-  },
+  navIcon: { fontSize: '1.2rem' },
   sidebarFooter: {
     paddingTop: '1rem',
     borderTop: '1px solid rgba(255,255,255,0.1)',
@@ -288,30 +302,20 @@ const styles = {
     cursor: 'pointer',
     transition: 'background 0.2s',
   },
-
-  // Main Content
   mainContent: {
     flex: 1,
     marginLeft: '260px',
     padding: '3rem',
     overflowY: 'auto',
   },
-  header: {
-    marginBottom: '2rem',
-  },
+  header: { marginBottom: '2rem' },
   pageTitle: {
     fontSize: '2rem',
     fontWeight: '800',
     color: '#0f172a',
     margin: '0 0 0.5rem 0',
   },
-  pageSubtitle: {
-    color: '#64748b',
-    fontSize: '1rem',
-    margin: 0,
-  },
-
-  // Control Bar
+  pageSubtitle: { color: '#64748b', fontSize: '1rem', margin: 0 },
   controlBar: {
     backgroundColor: 'white',
     padding: '1.5rem',
@@ -328,11 +332,7 @@ const styles = {
     flexDirection: 'column',
     gap: '0.5rem',
   },
-  label: {
-    fontSize: '0.9rem',
-    fontWeight: '600',
-    color: '#334155',
-  },
+  label: { fontSize: '0.9rem', fontWeight: '600', color: '#334155' },
   input: {
     padding: '0.75rem 1rem',
     borderRadius: '8px',
@@ -354,8 +354,6 @@ const styles = {
     boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.3)',
     height: '46px',
   },
-
-  // Alerts
   errorAlert: {
     padding: '1rem',
     backgroundColor: '#fef2f2',
@@ -366,11 +364,7 @@ const styles = {
     alignItems: 'center',
     borderLeft: '4px solid #ef4444',
   },
-
-  // Results
-  resultsContainer: {
-    animation: 'fadeIn 0.5s ease-out',
-  },
+  resultsContainer: { animation: 'fadeIn 0.5s ease-out' },
   metricsGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
@@ -401,8 +395,6 @@ const styles = {
     fontWeight: '700',
     color: '#0f172a',
   },
-
-  // Chart
   chartCard: {
     backgroundColor: 'white',
     padding: '2rem',

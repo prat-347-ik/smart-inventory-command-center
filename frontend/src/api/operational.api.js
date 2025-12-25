@@ -16,9 +16,16 @@ export const operationalApi = {
     return response.data;
   },
 
+  // [NEW] Get Single Product (for Stock Level)
+  getProduct: async (sku) => {
+    const response = await httpClient.get(`/api/products/${sku}`);
+    return response.data;
+  },
+
   // Orders
   createOrder: async (items, userId) => {
     const response = await httpClient.post('/api/orders', { items, userId });
     return response.data;
   }
 };
+
