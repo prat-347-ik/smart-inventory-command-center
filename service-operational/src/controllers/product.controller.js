@@ -1,6 +1,14 @@
-import { getAllProductsService, createProductService, getProductBySkuService  } from '../services/inventory.service.js';
+// service-operational/src/controllers/product.controller.js
+import { 
+  getAllProductsService, 
+  createProductService, 
+  getProductBySkuService,
+  updateProductService, // <--- Import
+  deleteProductService  // <--- Import
+} from '../services/inventory.service.js';
 import { processCsvUpload } from '../services/csvIngestion.service.js';
 import { notifyStockUpdate } from '../sockets/inventory.socket.js';
+
 
 // @desc    Get all products
 // @route   GET /api/products
@@ -48,6 +56,39 @@ export const bulkUpload = async (req, res, next) => {
 
   } catch (error) {
     next(error);
+  }
+};
+
+// [NEW] Update Product
+// @route   PUT /api/products/:sku
+export const updateProduct = async (req, res, next) => {
+  try {
+    const { sku } = req.params;
+    const updatedProduct = await updateProductService(sku, req.body);
+    
+    if (!updatedProduct) return res.status(404).json({ message: 'Product not found' });
+
+    // Notify clients of stock change
+    notifyStockUpdate(req.io, updatedProduct);
+    
+    res.json(updatedProduct);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// [NEW] Delete Product
+// @route   DELETE /api/products/:sku
+export const deleteProduct = async (req, res, next) => {
+  try {
+    const { sku } = req.params;
+    const deleted = await deleteProductService(sku);
+    
+    if (!deleted) return res.status(404).json({ message: 'Product not found' });
+    
+    res.json({ message: `Product ${sku} removed` });
+  } catch (err) {
+    next(err);
   }
 };
 

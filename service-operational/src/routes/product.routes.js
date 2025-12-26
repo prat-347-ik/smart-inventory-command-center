@@ -1,25 +1,31 @@
+// service-operational/src/routes/product.routes.js
 import express from 'express';
 import multer from 'multer';
 import { 
   getProducts, 
   createProduct, 
   bulkUpload, 
-  getProductBySku 
+  getProductBySku,
+  updateProduct, // <--- Import
+  deleteProduct  // <--- Import
 } from '../controllers/product.controller.js';
-// 1. Import the Auth Middleware
 import { protect } from '../middlewares/auth.middleware.js'; 
+import { authorize } from '../middlewares/role.middleware.js'; // <--- Import
 
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
 
-// --- Secured Routes ---
-// All these now require a valid Bearer Token in the header
+// 1. PUBLIC / SHARED ROUTES
+router.get('/', protect, getProducts);
+router.get('/:sku', protect, getProductBySku);
 
-router.get('/', protect, getProducts);          // <--- Locked: No public scraping
-router.get('/:sku', protect, getProductBySku);  // <--- Locked: Secure stock lookup
-router.post('/', protect, createProduct);       // <--- Locked: Only staff can add items
+// 2. STAFF & ADMIN (Operational)
+// Staff can update stock counts
+router.put('/:sku', protect, authorize('ADMIN', 'STAFF'), updateProduct); 
 
-// The "Legacy Migration" endpoint
-router.post('/upload', protect, upload.single('file'), bulkUpload); // <--- Locked
+// 3. ADMIN ONLY (Catalog Management)
+router.post('/', protect, authorize('ADMIN'), createProduct);       
+router.post('/upload', protect, authorize('ADMIN'), upload.single('file'), bulkUpload); 
+router.delete('/:sku', protect, authorize('ADMIN'), deleteProduct); 
 
 export default router;
