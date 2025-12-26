@@ -89,7 +89,7 @@ const checkAnalyticsConnection = async () => {
     try {
         logger.info(`🔍 Checking connection to Analytics Service at ${analyticsUrl}...`);
         // Call the Python Health Endpoint
-        const response = await axios.get(`${analyticsUrl}/health`, { timeout: 3000 });
+        const response = await axios.get(`${analyticsUrl}/health`, { timeout: 30000 });
         
         if (response.status === 200 && response.data.status === 'ok') {
             logger.info(`✅ Analytics Service is ONLINE and reachable.`);

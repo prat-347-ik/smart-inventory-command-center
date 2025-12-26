@@ -1,10 +1,25 @@
 import axios from 'axios';
 
+// ----------------------------------------------------------------------
+// DYNAMIC BASE URL CONFIGURATION
+// ----------------------------------------------------------------------
+// 1. Checks for VITE_API_URL (if using Vite)
+// 2. Checks for REACT_APP_API_URL (if using Create React App)
+// 3. Fallback to '/' (relative path) for Nginx or same-domain proxies
+// ----------------------------------------------------------------------
+const getBaseUrl = () => {
+  // Uses http://localhost:4000 locally
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  return '/'; // Fallback for Production/Nginx
+};
+
+
+
 // Create a configured Axios instance
 const httpClient = axios.create({
-  // CHANGE THIS LINE:
-  // Use relative path so it goes through Nginx (http://localhost/api/...)
-  baseURL: '/', 
+  baseURL: getBaseUrl(),
   headers: {
     'Content-Type': 'application/json',
   },
@@ -24,14 +39,15 @@ httpClient.interceptors.request.use(
   }
 );
 
-// Response Interceptor: Global error handling (optional but good for debugging)
+// Response Interceptor: Global error handling
 httpClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
       // Auto-logout if token is invalid
       localStorage.removeItem('token');
-      // window.location.href = '/login'; // Optional: Redirect to login
+      // Optional: Redirect to login
+      // window.location.href = '/login'; 
     }
     return Promise.reject(error);
   }
