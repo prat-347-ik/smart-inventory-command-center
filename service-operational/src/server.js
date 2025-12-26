@@ -20,15 +20,39 @@ import { inventorySocket } from './sockets/inventory.socket.js';
 
 const app = express();
 const httpServer = createServer(app);
+
+// --- 1. CORS CONFIGURATION (UPDATED FOR CLOUD) ---
+const allowedOrigins = [
+  'http://localhost:5173',               // Local React Development
+  'http://localhost',                    // Docker Nginx
+  process.env.FRONTEND_URL               // <--- CLOUD: Your Vercel URL (e.g., https://smart-inventory.vercel.app)
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1 || !process.env.NODE_ENV) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true // Critical for Cookies/Sessions
+};
+
+app.use(cors(corsOptions));
+// --------------------------------------------------
+
 const io = new Server(httpServer, {
   cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
+    origin: allowedOrigins, // Apply same rules to WebSockets
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
 
 // Middleware
-app.use(cors());
 app.use(express.json());
 
 // Make 'io' accessible in routes
