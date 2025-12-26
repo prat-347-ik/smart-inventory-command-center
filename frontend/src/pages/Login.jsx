@@ -129,7 +129,7 @@ const Login = () => {
                   value={formData.username}
                   onChange={handleChange}
                   required={!isLoginMode}
-                  placeholder="jdoe"
+                  placeholder="logistics_manager"
                 />
               </div>
             )}

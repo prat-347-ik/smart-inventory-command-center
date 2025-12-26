@@ -11,17 +11,18 @@ services:
     container_name: inventory-operational
     restart: unless-stopped
     ports:
-      - "4000:4000" # Direct API Access (Optional, good for debugging)
+      - "4000:4000"
     environment:
       - PORT=4000
       - MONGO_URI=${MONGO_URI}
       - JWT_SECRET=${JWT_SECRET}
-      # Internal DNS name for Service B
+      - DB_NAME=inventory_analytics
       - ANALYTICS_SERVICE_URL=http://service-analytics:8000
     networks:
       - inventory-network
     depends_on:
-      - service-analytics
+      service-analytics:
+        condition: service_healthy  # <--- WAITS FOR HEALTH CHECK
 
   # ---------------------------
   # Service B: Analytics (Python)
@@ -33,12 +34,20 @@ services:
     container_name: inventory-analytics
     restart: unless-stopped
     ports:
-      - "8000:8000" # Direct API Access (Optional)
+      - "8000:8000"
     environment:
       - MONGO_URI=${MONGO_URI}
       - DB_NAME=inventory_analytics
     networks:
       - inventory-network
+    # <--- ADDED HEALTH CHECK
+    healthcheck:
+      # Uses Python's built-in library to check the /health endpoint (no curl needed)
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health\")' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   # ---------------------------
   # Service C: Frontend (React)
@@ -49,7 +58,6 @@ services:
       dockerfile: Dockerfile
     container_name: inventory-frontend
     restart: unless-stopped
-    # No ports mapped to host; accessible ONLY via Gateway
     networks:
       - inventory-network
 
@@ -61,9 +69,8 @@ services:
     container_name: inventory-gateway
     restart: unless-stopped
     ports:
-      - "80:80" # Main Entry Point
+      - "80:80"
     volumes:
-      # Mount the config file we created in the previous step
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - frontend

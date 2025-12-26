@@ -87,7 +87,7 @@ const Dashboard = () => {
             <div style={{...styles.iconBox, background: '#f5f3ff', color: '#7c3aed'}}>📈</div>
             <div style={styles.cardContent}>
               <h3 style={styles.cardTitle}>Demand Intelligence</h3>
-              <p style={styles.cardDesc}>AI-powered predictions for future product demand.</p>
+              <p style={styles.cardDesc}>Predictions for future product demand.</p>
               <span style={styles.cardLink}>Analyze Trends →</span>
             </div>
           </Link>

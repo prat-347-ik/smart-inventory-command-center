@@ -1,11 +1,11 @@
 // frontend/src/pages/Forecast.jsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react'; // <--- UPDATED IMPORT
 import { Link, useNavigate } from 'react-router-dom';
 import { analyticsApi } from '../api/analytics.api';
-import { operationalApi } from '../api/operational.api'; // <--- UPDATED IMPORT
+import { operationalApi } from '../api/operational.api'; 
 import useAuth from '../hooks/useAuth';
 import SalesForecastChart from '../components/charts/SalesForecastChart';
-import InventoryBurnChart from '../components/charts/InventoryBurnChart'; // <--- NEW IMPORT
+import InventoryBurnChart from '../components/charts/InventoryBurnChart';
 
 const Forecast = () => {
   const navigate = useNavigate();
@@ -15,9 +15,24 @@ const Forecast = () => {
   const [sku, setSku] = useState(''); 
   const [days, setDays] = useState(7);
   const [forecastResponse, setForecastResponse] = useState(null);
-  const [productData, setProductData] = useState(null); // <--- NEW STATE (For stock levels)
+  const [productData, setProductData] = useState(null);
+  const [productList, setProductList] = useState([]); // <--- NEW STATE
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // --- Effects ---
+  // Fetch the list of available products when the component mounts
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        const data = await operationalApi.getProducts();
+        setProductList(data);
+      } catch (err) {
+        console.error("Failed to load products list:", err);
+      }
+    };
+    loadProducts();
+  }, []);
 
   // --- Handlers ---
   const handleLogout = () => {
@@ -98,14 +113,22 @@ const Forecast = () => {
 
         {/* 1. Control Bar */}
         <div style={styles.controlBar}>
+          
+          {/* REPLACED: Input Text with Dropdown Select */}
           <div style={styles.inputGroup}>
             <label style={styles.label}>Target SKU:</label>
-            <input 
+            <select 
               value={sku} 
               onChange={(e) => setSku(e.target.value)} 
-              placeholder="e.g. MACBOOK-PRO-M3"
-              style={styles.input}
-            />
+              style={styles.select}
+            >
+              <option value="">-- Select Product --</option>
+              {productList.map((product) => (
+                <option key={product._id || product.sku} value={product.sku}>
+                  {product.sku} - {product.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div style={styles.inputGroup}>
@@ -113,7 +136,7 @@ const Forecast = () => {
             <input 
               type="number"
               min="1"
-              max="90" 
+              max="30" 
               value={days}
               onChange={(e) => setDays(parseInt(e.target.value) || 7)}
               style={{ ...styles.input, width: '120px' }}
@@ -156,7 +179,7 @@ const Forecast = () => {
                   {forecastResponse.confidence_score?.toFixed(2) || 'N/A'}
                 </strong>
               </div>
-              {/* NEW: Current Stock Metric */}
+              {/* Current Stock Metric */}
               <div style={styles.metricCard}>
                 <span style={styles.metricLabel}>Current Stock</span>
                 <strong style={{ 
@@ -179,7 +202,7 @@ const Forecast = () => {
               </div>
             </div>
 
-            {/* Chart 2: Inventory Burn Down (NEW) */}
+            {/* Chart 2: Inventory Burn Down */}
             {productData && (
               <InventoryBurnChart 
                 currentStock={productData.current_stock}
@@ -341,6 +364,18 @@ const styles = {
     outline: 'none',
     backgroundColor: 'white',
     color: 'black',
+  },
+  // ADDED: Style for the select box
+  select: {
+    padding: '0.75rem 1rem',
+    borderRadius: '8px',
+    border: '1px solid #94a3b8',
+    fontSize: '1rem',
+    outline: 'none',
+    backgroundColor: 'white',
+    color: 'black',
+    cursor: 'pointer',
+    minWidth: '220px', 
   },
   button: {
     padding: '0.75rem 1.5rem',

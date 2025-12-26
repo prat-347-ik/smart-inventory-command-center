@@ -2,7 +2,9 @@ import axios from 'axios';
 
 // Create a configured Axios instance
 const httpClient = axios.create({
-  baseURL: import.meta.env.VITE_NODE_API || 'http://localhost:4000',
+  // CHANGE THIS LINE:
+  // Use relative path so it goes through Nginx (http://localhost/api/...)
+  baseURL: '/', 
   headers: {
     'Content-Type': 'application/json',
   },
