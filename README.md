@@ -1,19 +1,25 @@
-
 # 🧠 Intelligent Supply Chain / Inventory Command Center
 
-> **Status:** MVP Complete (Dockerized Backend)
-> **Stack:** Node.js (OLTP), Python (OLAP), MongoDB Atlas, Docker, Socket.io
+![Status](https://img.shields.io/badge/Status-MVP%20Complete-success?style=for-the-badge)
+![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-Operational-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
+![Python](https://img.shields.io/badge/Python-Analytics-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?style=for-the-badge&logo=mongodb&logoColor=white)
 
-## 📖 Overview
+> **A microservices-based inventory analytics platform that separates real-time operations from analytical and forecasting workloads.**
 
-A microservices-based inventory analytics platform that separates real-time operations
-from analytical and forecasting workloads.
-
-The system mirrors real-world enterprise inventory architectures using **event-driven design**, **data warehousing**, and **explainable machine learning principles**.
 
 ---
 
-## 🏗️ Architecture
+## 📖 Overview
+
+The **Intelligent Supply Chain Command Center** mirrors real-world enterprise inventory architectures. It solves the common problem of running heavy analytical queries on operational databases by using **event-driven design**, **data warehousing**, and **explainable machine learning principles**.
+
+The system is designed to ensure that heavy analytical workloads (like training ML models) never block real-time user actions (like placing orders).
+
+---
+
+## 🏗️ System Architecture
 
 The system follows a **Microservices** pattern with two distinct services sharing a data layer, fully orchestrated via Docker.
 
@@ -24,11 +30,21 @@ The system follows a **Microservices** pattern with two distinct services sharin
 | **Infrastructure** | Docker Compose | Orchestrates services with internal networking and environment injection. |
 | **Database** | MongoDB Atlas | Shared persistence layer with logical OLTP / OLAP separation. |
 
-This design ensures heavy analytical workloads never block real-time user actions.
+---
+
+## ✅ Key Features & Implementation Status
+
+### 🟢 Completed (MVP)
+* ✔ **Event-Driven Architecture:** Real-time CDC via MongoDB Change Streams.
+* ✔ **Immutable Data Lake:** Raw sales events are stored permanently for auditability.
+* ✔ **OLAP Aggregation:** Daily aggregated sales fact tables.
+* ✔ **Feature Engineering:** ML-ready signal generation (Lags, Rolling Means, Trends).
+* ✔ **Forecasting Engine:** Explainable Linear Regression (Phase 4).
+* ✔ **Dockerized Backend:** Full containerization of Node.js and Python services.
 
 ---
 
-## 🚀 How to Run (Docker)
+## 🚀 Getting Started
 
 The entire backend infrastructure is containerized. You do not need Node.js or Python installed locally, only Docker.
 
@@ -40,162 +56,79 @@ The entire backend infrastructure is containerized. You do not need Node.js or P
 ```bash
 cd infrastructure
 docker-compose up --build -d
-
 ```
 
 ### 3. Verify Connectivity
+* **Operational API (Node)**: `http://localhost:4000/health`
 
-* **Operational API (Node):** `http://localhost:4000/health` (or check logs)
-* **Analytics API (Python):** `http://localhost:8000/health` (via internal Docker network)
-
-> **Note:** Service B (Python) is accessible to Service A via the internal hostname `http://service-analytics:8000`.
+* **Analytics API (Python)**: `http://localhost:8000/health` (Internal: `http://service-analytics:8000`)
 
 ---
 
-## ✅ Current Implementation Status
+## 📊 Deep Dive: Analytics Pipeline
 
-### Completed
-
-✔ Event-driven analytics pipeline (CDC via MongoDB Change Streams)
-✔ Immutable raw sales events data lake
-✔ Daily aggregated sales fact table (OLAP)
-✔ Feature engineering layer (ML-ready signals)
-✔ **Forecasting engine with explainable ML (Phase 4)**
-✔ **Forecast persistence & read-optimized API**
-✔ **Full Dockerization of Backend Services**
-
----
-
-## 📊 Analytics Pipeline (Deep Dive)
-
-```text
-Orders (OLTP)
-   ↓
-MongoDB Change Streams
-   ↓
-Raw Sales Events (Immutable Data Lake)
-   ↓
-Daily Sales Snapshots (Fact Table)
-   ↓
-Feature Engineering (ML-ready signals)
-   ↓
-Forecasting Engine (Linear Regression)
-   ↓
-Persisted Forecasts (Read-Optimized)
-
+The system uses a sophisticated pipeline to transform raw transactional data into actionable predictions.
+```mermaid
+%%{ init: { 'flowchart': { 'curve': 'basis' } } }%%
+flowchart TD
+    %% Source
+    A[Orders OLTP] -->|MongoDB Change Streams| B(Raw Sales Events Data Lake)
+    
+    %% Analytics Pipeline
+    B --> C(Daily Sales Fact Table)
+    C -->|Lags & Trends| D[Feature Engineering]
+    D -->|Linear Regression| E[Forecasting Engine]
+    
+    %% The Recursive Loop (Now smoother)
+    E -->|Recursive Loop| E
+    
+    E -->|Predictions + Confidence| F[Persisted Forecasts]
+    
+    %% Consumption
+    F -->|GET /api/forecast| G[FastAPI Endpoint]
+    G -->|JSON Data| H[Command Center Dashboard]
 ```
 
----
+**1. Feature Engineering (Phase 3)**
 
-## 🛠️ Feature Engineering (Phase 3)
+We prioritize "Features over Algorithms." The layer converts business data into explainable signals:
 
-The feature engineering layer converts aggregated business data into **explainable numerical signals** suitable for machine learning.
+* **Lag Features**: 1, 7, 14 days (Memory & Seasonality).
+* **Rolling Mean**: 7-day smoothing (Leakage-safe).
+* **Trend Index**: Captures directional momentum.
 
-### Implemented Features
+**2. Forecasting Engine (Phase 4)**
 
-* **Lag features (1, 7, 14 days):** Capture short-term memory, weekly seasonality, and medium-term momentum.
-* **7-day rolling mean (leakage-safe):** Smooths daily noise using past-only data.
-* **Trend index (directionality):** Captures demand momentum using recent historical change.
+* **Algorithm**: Linear Regression (Scikit-Learn).
+* **Strategy**: Recursive Multi-step Forecasting.
+* **Training**: On-the-fly per SKU.
+* **Confidence**: Dynamic confidence intervals based on R2 scores.
 
-### Guarantees
+**3. Model Lifecycle**
 
-* Stateless & deterministic processing
-* No database access
-* No data leakage
-* Numeric-only, non-null ML-ready output
-
-> **"Features matter more than algorithms."**
-
----
-
-## 🔮 Forecasting Engine (Phase 4)
-
-The forecasting engine generates **explainable, multi-day demand predictions** using engineered time-series features.
-
-### Model Design
-
-* **Algorithm**: Linear Regression (Scikit-Learn)
-* **Training**: On-the-fly per SKU
-* **Forecasting Strategy**: Recursive multi-step forecasting
-* **Confidence Metric**: R² score (training-based, MVP)
-
-### Key Characteristics
-
-* Explainable feature weights
-* Deterministic predictions
-* No black-box models
-* Safe for low-data scenarios (minimum history enforced)
-
-### Forecast Lifecycle
-
-1. Historical daily snapshots are loaded (OLAP)
-2. Feature engineering pipeline is applied
-3. Regression model is trained per SKU
-4. Future demand is predicted for a configurable horizon
-5. Forecasts are **persisted** and reused
-
----
-
-## 📡 Forecast API (Read Path)
-
-Forecasts are exposed via a **read-only, low-latency API**.
-
-```http
-GET /api/forecast/{sku}
-
-```
-
-### Behavior
-
-* Returns the latest persisted forecast
-* Does not trigger model training
-* Ensures consistent, reproducible results for dashboards
-
----
-
-## 🔄 Model Lifecycle & Design Decisions
-
-### Model Training & Persistence
-
-For the current MVP implementation:
-
-* **On-the-fly Training:** Forecasting models are trained per SKU when a forecast is generated.
-* **No Model Storage:** Trained models are not persisted; only the **forecast outputs** (predictions + confidence score) are stored.
-
-**Why?**
-
-* Keeps the system simple and explainable.
-* Avoids premature model registry complexity.
-* Supports rapid iteration during development.
-
-### Forecast Triggering Strategy
-
-* **Current:** Forecast generation is triggered manually or via script to allow controlled testing of the pipeline (OLAP read → feature engineering → ML → persistence).
-* **Future (Production):** Automated using a scheduler (e.g., cron jobs, Airflow) to run periodically.
+* **Stateless**: Models are trained on demand; they are not stored.
+* **Persistence**: Only the forecast outputs and confidence scores are saved to the database.
+* **API**: Forecasts are served via a high-performance read-only endpoint (`GET /api/forecast/{sku}`).
 
 ---
 
 ## 💻 Tech Stack
 
 ### Infrastructure
-
-* **Docker & Docker Compose**
-* **MongoDB Atlas** (Replica Set + Change Streams)
+* Docker & Docker Compose
+* MongoDB Atlas (Replica Set + Change Streams)
 
 ### Service A (Operational)
+* **Runtime**: Node.js
+* **Framework**: Express
+* **Real-time**: Socket.io
+* **ORM**: Mongoose
 
-* Node.js
-* Express
-* Socket.io (Real-time updates)
-* Mongoose
-
-### Service B (Analytics)
-
-* Python 3.11 (Slim Image)
-* FastAPI
-* Motor (Async MongoDB)
-* Pandas, NumPy
-* Scikit-Learn (Linear Regression)
+Service B (Analytics)
+* **Runtime**: Python 3.11 (Slim Image)
+* **Framework**: FastAPI
+* **Async DB**: Motor
+* **Data Science**: Pandas, NumPy, Scikit-Learn
 
 ---
 
@@ -205,6 +138,11 @@ For the current MVP implementation:
 * **Prefer explainable models** over black-box accuracy.
 * **Separate** data ingestion, transformation, and prediction clearly.
 * **Treat documentation** and architecture as first-class deliverables.
+
+---
+
+> **Status:** MVP Complete (Dockerized Backend)
+> **Stack:** Node.js (OLTP), Python (OLAP), MongoDB Atlas, Docker, Socket.io
 
 ---
 
